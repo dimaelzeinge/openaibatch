@@ -4,7 +4,7 @@ A web application providing tools for working with OpenAI's API batch processing
 
 ## Screenshot
 
-![screenshot](https://i.ibb.co/1X8q0T4/Screenshot-2024-11-21-at-11-57-11.png)
+![screenshot](https://pasteboard.co/tb6PHZdsuiAI.png)
 
 ## Features
 
