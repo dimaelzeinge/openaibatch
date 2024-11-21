@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSV to JSONL Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border: 3px solid #757577;
+            border-radius: 50%;
+            border-top: 3px solid #86868b;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .drag-area {
+            border: 2px dashed #86868b;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            background: #ffffff;
+            transition: all 0.3s ease;
+        }
+
+        .drag-area.active {
+            border-color: #1d1d1f;
+            background: #5c5c5d;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-[#1d1d1f]">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="bg-[#2c2c2e] rounded-lg shadow-lg p-6">
+            <h1 class="text-2xl font-bold text-center mb-6 text-[#e5e5e7]">CSV to JSONL Converter for OpenAI Batch</h1>
+            
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4 mb-4">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Alert Messages -->
+            <div id="successAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
+            <div id="errorAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
+
+            <form id="convertForm" method="POST" action="{{ url_for('format_csv') }}" enctype="multipart/form-data" class="space-y-4">
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-[#e5e5e7]">Model:</label>
+                    <select id="modelSelect" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b] mb-2">
+                        <option value="o1-mini">o1-mini</option>
+                        <option value="o1-preview">o1-preview</option>
+                        <option value="gpt-4o-mini">gpt-4o-mini</option>
+                        <option value="gpt-4o">gpt-4o</option>
+                        <option value="gpt-4-turbo">gpt-4-turbo</option>
+                        <option value="gpt-4">gpt-4</option>
+                        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                        <option value="custom">specify model yourself</option>
+                    </select>
+                    <input type="text" id="customModel" name="model" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]" style="display: none;" required>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-[#e5e5e7]">System Prompt:</label>
+                    <textarea name="system_prompt" required
+                              class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]">You are a helpful assistant.</textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-[#e5e5e7]">Max Tokens:</label>
+                    <input type="number" name="max_tokens" value="1000" required
+                           class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]">
+                </div>
+
+                <div class="drag-area" id="drop-zone">
+                    <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <header class="text-[#e5e5e7]">Drag and drop your CSV file here or click to select</header>
+                    <input type="file" id="csv_file" name="csv_file" accept=".csv" hidden required>
+                    <button type="button" class="bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] mt-2 border border-[#a1a1a6]" onclick="document.getElementById('csv_file').click()">Select File</button>
+                    <div id="filename" class="mt-2 text-[#e5e5e7]"></div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-[#e5e5e7]">Content Column:</label>
+                    <select id="content_column" name="content_column" required
+                            class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]">
+                    </select>
+                </div>
+
+                <div class="loader" id="loader"></div>
+
+                <button type="submit" id="submitBtn"
+                        class="w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] transition duration-200 border border-[#a1a1a6]">
+                    Convert to JSONL
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('convertForm');
+        const loader = document.getElementById('loader');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('csv_file');
+        const filename = document.getElementById('filename');
+        const successAlert = document.getElementById('successAlert');
+        const errorAlert = document.getElementById('errorAlert');
+        const modelSelect = document.getElementById('modelSelect');
+        const customModel = document.getElementById('customModel');
+
+        modelSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customModel.style.display = 'block';
+                customModel.value = '';
+            } else {
+                customModel.style.display = 'none';
+                customModel.value = this.value;
+            }
+        });
+
+        // File drag and drop handling
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('active');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file.type === 'text/csv') {
+                handleFile(file);
+            } else {
+                showError('Please upload a CSV file');
+            }
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            filename.textContent = `Selected: ${file.name}`;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const headers = text.split('\n')[0].split(',');
+                const select = document.getElementById('content_column');
+                select.innerHTML = '';
+                
+                headers.forEach(header => {
+                    const option = document.createElement('option');
+                    option.value = header.trim();
+                    option.textContent = header.trim();
+                    select.appendChild(option);
+                });
+            };
+            
+            reader.readAsText(file);
+        }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            loader.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            const formData = new FormData(form);
+            
+            fetch('{{ url_for("format_csv") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error occurred during conversion');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'output.jsonl';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                const successMessage = 'File has been successfully converted and download started. ';
+                const successHtml = document.createElement('div');
+                successHtml.textContent = successMessage;
+                
+                const link = document.createElement('a');
+                link.href = 'https://platform.openai.com/batches';
+                link.textContent = 'Click here to visit OpenAI platform';
+                link.target = '_blank';
+                link.className = 'text-[#86868b] hover:text-[#e5e5e7] underline';
+                
+                successHtml.appendChild(link);
+                successHtml.appendChild(document.createTextNode(' to upload your file.'));
+                
+                successAlert.innerHTML = '';
+                showSuccess('');
+                successAlert.appendChild(successHtml);
+            })
+            .catch(error => {
+                showError(error.message);
+            })
+            .finally(() => {
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Convert to JSONL';
+            });
+        });
+
+        function showSuccess(message) {
+            successAlert.textContent = message;
+            successAlert.style.display = 'block';
+            
+            // Close button
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '×';
+            closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
+            closeButton.onclick = function() {
+                successAlert.style.display = 'none';
+            };
+            
+            successAlert.insertBefore(closeButton, successAlert.firstChild);
+        }
+
+        function showError(message) {
+            errorAlert.textContent = message;
+            errorAlert.style.display = 'block';
+            setTimeout(() => {
+                errorAlert.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
