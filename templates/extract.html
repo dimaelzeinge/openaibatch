@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JSONL Response Extractor</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border: 3px solid #757577;
+            border-radius: 50%;
+            border-top: 3px solid #86868b;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .drag-area {
+            border: 2px dashed #86868b;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            background: #ffffff;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .drag-area.active {
+            border-color: #1d1d1f;
+            background: #5c5c5d;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-[#1d1d1f]">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="bg-[#2c2c2e] rounded-lg shadow-lg p-6">
+            <h1 class="text-2xl font-bold text-center mb-6 text-[#e5e5e7]">JSONL Response Extractor</h1>
+            
+            <!-- Alert Messages -->
+            <div id="successAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
+            <div id="errorAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
+
+            <form id="extractForm" action="{{ url_for('extract_jsonl') }}" method="post" enctype="multipart/form-data">
+                <div class="drag-area mb-4" id="drop-zone">
+                    <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <header class="text-[#1d1d1f]">Drag and drop your JSONL response file here or click to select</header>
+                    <input type="file" id="jsonl_file" name="jsonl_file" accept=".jsonl" 
+                           style="position: absolute; opacity: 0; width: 0; height: 0;">
+                    <button type="button" class="bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] mt-2 border border-[#a1a1a6]" onclick="document.getElementById('jsonl_file').click()">Select File</button>
+                    <div id="filename" class="mt-2 text-[#1d1d1f]"></div>
+                </div>
+
+                <div class="loader" id="loader"></div>
+
+                <button type="submit" id="submitBtn"
+                        class="w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] mt-4 transition duration-200 border border-[#a1a1a6]">
+                    Extract Content
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('extractForm');
+        const loader = document.getElementById('loader');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('jsonl_file');
+        const filename = document.getElementById('filename');
+        const successAlert = document.getElementById('successAlert');
+        const errorAlert = document.getElementById('errorAlert');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('active');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file.name.endsWith('.jsonl')) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(file);
+            } else {
+                showError('Please upload a JSONL file');
+            }
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                handleFile(file);
+            }
+        });
+
+        function handleFile(file) {
+            filename.textContent = `Selected: ${file.name}`;
+        }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!fileInput.files || !fileInput.files.length) {
+                showError('Please select a file');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file.name.endsWith('.jsonl')) {
+                showError('Please select a valid JSONL file');
+                return;
+            }
+
+            loader.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            const formData = new FormData(form);
+            
+            fetch('{{ url_for("extract_jsonl") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || 'Error occurred during processing');
+                    });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'extracted_content.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showSuccess('Content has been successfully extracted and downloaded as CSV.');
+            })
+            .catch(error => {
+                showError(error.message);
+            })
+            .finally(() => {
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Extract Content';
+            });
+        });
+
+        function showSuccess(message) {
+            successAlert.textContent = message;
+            successAlert.style.display = 'block';
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '×';
+            closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
+            closeButton.onclick = () => successAlert.style.display = 'none';
+            successAlert.insertBefore(closeButton, successAlert.firstChild);
+        }
+
+        function showError(message) {
+            errorAlert.textContent = message;
+            errorAlert.style.display = 'block';
+            setTimeout(() => errorAlert.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html> 

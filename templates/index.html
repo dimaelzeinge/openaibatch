@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OpenAI Tools</title>
+    <title>OpenAI Batch Tools</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-[#1d1d1f]">
@@ -16,6 +16,10 @@
                 <a href="{{ url_for('split_page') }}"
                    class="block w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] text-center transition duration-200 border border-[#a1a1a6]">
                     JSONL File Splitter
+                </a>
+                <a href="{{ url_for('extract_page') }}"
+                   class="block w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] text-center transition duration-200 border border-[#a1a1a6]">
+                    JSONL Response Extractor
                 </a>
             </div>
         </div>
