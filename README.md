@@ -1,10 +1,10 @@
-# OpenAI Tools
+# OpenAI BatchTools
 
-A web application providing tools for working with OpenAI's API batch processing features. 
+A simple tool to convert a CSV file to JSONL and split a JSONL file into multiple parts
 
 ## Screenshot
 
-![screenshot](https://pasteboard.co/tb6PHZdsuiAI.png)
+![screenshot](https://youjb.com/images/2024/11/22/Screenshot-2024-11-21-at-12.26.12PM4208dc6e1ee79a64.png)
 
 ## Features
 
