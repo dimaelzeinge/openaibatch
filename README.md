@@ -1,6 +1,6 @@
 # OpenAI Batch Tools
 
-A simple tool to convert a CSV file to JSONL, split a JSONL file into multiple parts, and extract responses from JSONL files. This tool is designed to help you prepare data for OpenAI API batch processing.
+Some simple tools to convert a CSV file to JSONL, split a JSONL file into multiple parts, and extract responses from JSONL files. These tools are designed to help you prepare data for OpenAI batch processing.
 
 ## Screenshot
 
