@@ -27,6 +27,7 @@
             border-radius: 8px;
             background: #ffffff;
             transition: all 0.3s ease;
+            position: relative;
         }
 
         .drag-area.active {
@@ -45,20 +46,8 @@
 <body class="bg-[#1d1d1f]">
     <div class="container mx-auto px-4 py-8 max-w-2xl">
         <div class="bg-[#2c2c2e] rounded-lg shadow-lg p-6">
-            <h1 class="text-2xl font-bold text-center mb-6 text-[#e5e5e7]">CSV to JSONL Converter for OpenAI Batch</h1>
+            <h1 class="text-2xl font-bold text-center mb-6 text-[#e5e5e7]">CSV to JSONL Converter</h1>
             
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4 mb-4">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            <!-- Alert Messages -->
             <div id="successAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
             <div id="errorAlert" class="alert bg-[#3a3a3c] border-l-4 border-[#86868b] text-[#e5e5e7] p-4"></div>
 
@@ -92,10 +81,11 @@
 
                 <div class="drag-area" id="drop-zone">
                     <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                    <header class="text-[#e5e5e7]">Drag and drop your CSV file here or click to select</header>
-                    <input type="file" id="csv_file" name="csv_file" accept=".csv" hidden required>
+                    <header class="text-[#1d1d1f]">Drag and drop your CSV file here or click to select</header>
+                    <input type="file" id="csv_file" name="csv_file" accept=".csv" 
+                           style="position: absolute; opacity: 0; width: 0; height: 0;">
                     <button type="button" class="bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] mt-2 border border-[#a1a1a6]" onclick="document.getElementById('csv_file').click()">Select File</button>
-                    <div id="filename" class="mt-2 text-[#e5e5e7]"></div>
+                    <div id="filename" class="mt-2 text-[#1d1d1f]"></div>
                 </div>
 
                 <div class="space-y-2">
@@ -108,7 +98,7 @@
                 <div class="loader" id="loader"></div>
 
                 <button type="submit" id="submitBtn"
-                        class="w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] transition duration-200 border border-[#a1a1a6]">
+                        class="w-full bg-[#86868b] text-[#e5e5e7] px-4 py-2 rounded-md hover:bg-[#1d1d1f] mt-4 transition duration-200 border border-[#a1a1a6]">
                     Convert to JSONL
                 </button>
             </form>
@@ -137,7 +127,6 @@
             }
         });
 
-        // File drag and drop handling
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('active');
@@ -159,8 +148,10 @@
         });
 
         fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            handleFile(file);
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                handleFile(file);
+            }
         });
 
         function handleFile(file) {
@@ -186,11 +177,35 @@
 
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            if (!fileInput.files || !fileInput.files.length) {
+                showError('Please select a file');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file.name.endsWith('.csv')) {
+                showError('Please select a valid CSV file');
+                return;
+            }
+
+            const modelValue = modelSelect.value === 'custom' ? customModel.value : modelSelect.value;
+            
+            if (!modelValue) {
+                showError('Please select or enter a model');
+                return;
+            }
+
             loader.style.display = 'block';
             submitBtn.disabled = true;
             submitBtn.textContent = 'Processing...';
 
             const formData = new FormData(form);
+            if (modelSelect.value === 'custom') {
+                formData.set('model', customModel.value);
+            } else {
+                formData.set('model', modelSelect.value);
+            }
             
             fetch('{{ url_for("format_csv") }}', {
                 method: 'POST',
@@ -198,7 +213,9 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Error occurred during conversion');
+                    return response.text().then(text => {
+                        throw new Error(text || 'Error occurred during processing');
+                    });
                 }
                 return response.blob();
             })
@@ -209,24 +226,9 @@
                 a.download = 'output.jsonl';
                 document.body.appendChild(a);
                 a.click();
+                document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-                
-                const successMessage = 'File has been successfully converted and download started. ';
-                const successHtml = document.createElement('div');
-                successHtml.textContent = successMessage;
-                
-                const link = document.createElement('a');
-                link.href = 'https://platform.openai.com/batches';
-                link.textContent = 'Click here to visit OpenAI platform';
-                link.target = '_blank';
-                link.className = 'text-[#86868b] hover:text-[#e5e5e7] underline';
-                
-                successHtml.appendChild(link);
-                successHtml.appendChild(document.createTextNode(' to upload your file.'));
-                
-                successAlert.innerHTML = '';
-                showSuccess('');
-                successAlert.appendChild(successHtml);
+                showSuccess('File has been successfully converted and downloaded.');
             })
             .catch(error => {
                 showError(error.message);
@@ -241,24 +243,17 @@
         function showSuccess(message) {
             successAlert.textContent = message;
             successAlert.style.display = 'block';
-            
-            // Close button
             const closeButton = document.createElement('button');
             closeButton.textContent = '×';
             closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
-            closeButton.onclick = function() {
-                successAlert.style.display = 'none';
-            };
-            
+            closeButton.onclick = () => successAlert.style.display = 'none';
             successAlert.insertBefore(closeButton, successAlert.firstChild);
         }
 
         function showError(message) {
             errorAlert.textContent = message;
             errorAlert.style.display = 'block';
-            setTimeout(() => {
-                errorAlert.style.display = 'none';
-            }, 5000);
+            setTimeout(() => errorAlert.style.display = 'none', 5000);
         }
     </script>
 </body>

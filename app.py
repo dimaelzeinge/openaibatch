@@ -148,35 +148,25 @@ def extract_jsonl():
         if not lines:
             return 'The file is empty', 400
 
-        # Create a CSV file in memory
         output = io.StringIO()
-        writer = csv.writer(output, quoting=csv.QUOTE_NONE, escapechar='\\')  # Disable quoting
-        writer.writerow(['custom_id', 'content'])  # CSV header
+        writer = csv.writer(output, quoting=csv.QUOTE_NONE, escapechar='\\')
+        writer.writerow(['custom_id', 'content'])
         
-        # First pass: collect all custom_ids
-        custom_ids = set()
-        content_map = {}
+        processed_ids = set()
         
         for line in lines:
             try:
                 data = json.loads(line)
                 custom_id = data.get('custom_id', '')
-                if custom_id:
-                    custom_ids.add(custom_id)
+                if custom_id and custom_id not in processed_ids:
+                    processed_ids.add(custom_id)
                     content = data.get('response', {}).get('body', {}).get('choices', [{}])[0].get('message', {}).get('content', '')
-                    if content:  # Only store if content is not empty
-                        content_map[custom_id] = content
+                    writer.writerow([custom_id, content])
             except (json.JSONDecodeError, KeyError, IndexError) as e:
                 continue
         
-        # Second pass: write rows in order, with empty content for missing responses
-        for custom_id in sorted(custom_ids):
-            content = content_map.get(custom_id, '')  # Get content or empty string if not found
-            writer.writerow([custom_id, content])
-        
-        # Convert StringIO to BytesIO
         output_bytes = io.BytesIO()
-        output_bytes.write(output.getvalue().encode('utf-8-sig'))  # Use UTF-8 with BOM for correct Chinese display in Excel
+        output_bytes.write(output.getvalue().encode('utf-8-sig'))
         output_bytes.seek(0)
         output.close()
         
