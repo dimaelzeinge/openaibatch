@@ -4,7 +4,10 @@ Some simple tools to convert a CSV file to JSONL, split a JSONL file into multip
 
 ## Screenshot
 
-![screenshot](https://i.postimg.cc/KvHHGSBK/Screenshot-2024-11-24-at-3-35-44-AM.png)
+![screenshot](https://i.postimg.cc/s2t7yDwP/Screenshot-2024-11-21-at-11-46-32-PM.png)
+![screenshot2](https://i.postimg.cc/L89V0Xbn/Screenshot-2024-11-26-at-10-54-48-AM.png)
+![screenshot3](https://i.postimg.cc/bJt022sF/Screenshot-2024-11-26-at-10-54-52-AM.png)
+![screenshot4](https://i.postimg.cc/HLJXf74s/Screenshot-2024-11-26-at-10-54-55-AM.png)
 
 ## Features
 

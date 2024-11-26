@@ -35,6 +35,7 @@ def format_csv():
             
         system_prompt = request.form['system_prompt']
         max_tokens = int(request.form['max_tokens'])
+        temperature = float(request.form.get('temperature', 1.0))
         content_column = request.form['content_column']
         
         temp_file = io.BytesIO()
@@ -55,6 +56,7 @@ def format_csv():
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": str(row[content_column])}
                     ],
+                    "temperature": temperature,
                     "max_tokens": max_tokens
                 }
             }

@@ -99,21 +99,37 @@
         const successAlert = document.getElementById('successAlert');
         const errorAlert = document.getElementById('errorAlert');
 
+        // Debug logging for element initialization
+        console.log('Form element:', form);
+        console.log('Loader element:', loader);
+        console.log('Submit button:', submitBtn);
+        console.log('Drop zone:', dropZone);
+        console.log('File input:', fileInput);
+        console.log('Filename display:', filename);
+        console.log('Success alert:', successAlert);
+        console.log('Error alert:', errorAlert);
+
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('active');
+            console.log('Dragover event triggered');
         });
 
         dropZone.addEventListener('dragleave', () => {
             dropZone.classList.remove('active');
+            console.log('Dragleave event triggered');
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
+            console.log('Drop event triggered');
             dropZone.classList.remove('active');
             const file = e.dataTransfer.files[0];
+            console.log('Dropped file:', file);
             if (file.name.endsWith('.jsonl')) {
-                fileInput.files = e.dataTransfer.files;
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
                 handleFile(file);
             } else {
                 showError('Please upload a JSONL file');
@@ -126,6 +142,7 @@
             console.log('Form submission triggered');
             
             if (!fileInput.files || !fileInput.files.length) {
+                console.warn('No file selected');
                 showError('Please select a file');
                 return;
             }
@@ -134,6 +151,7 @@
             console.log('Selected file:', file);
 
             if (!file.name.endsWith('.jsonl')) {
+                console.warn('Invalid file type:', file.name);
                 showError('Please select a valid JSONL file');
                 return;
             }
@@ -144,8 +162,10 @@
 
             const formData = new FormData();
             formData.append('jsonl_file', file);
-            formData.append('split_number', form.querySelector('input[name="split_number"]').value);
+            const splitNumber = form.querySelector('input[name="split_number"]').value;
+            formData.append('split_number', splitNumber);
             
+            console.log('Split number:', splitNumber);
             for (let pair of formData.entries()) {
                 console.log('FormData entry:', pair[0], pair[1]);
             }
@@ -156,8 +176,10 @@
             })
             .then(response => {
                 console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
                 if (!response.ok) {
                     return response.text().then(text => {
+                        console.error('Error response text:', text);
                         throw new Error(text || 'Issue occurred during processing');
                     });
                 }
@@ -165,6 +187,8 @@
             })
             .then(blob => {
                 console.log('Received blob:', blob);
+                console.log('Blob type:', blob.type);
+                console.log('Blob size:', blob.size);
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -191,12 +215,14 @@
             })
             .catch(error => {
                 console.error('Error:', error);
+                console.error('Error stack:', error.stack);
                 showError(error.message);
             })
             .finally(() => {
                 loader.style.display = 'none';
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Split JSONL File';
+                console.log('Request completed');
             });
         });
 
@@ -215,19 +241,27 @@
         }
 
         function showSuccess(message) {
+            console.log('Showing success message:', message);
             successAlert.textContent = message;
             successAlert.style.display = 'block';
             const closeButton = document.createElement('button');
             closeButton.textContent = '×';
             closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
-            closeButton.onclick = () => successAlert.style.display = 'none';
+            closeButton.onclick = () => {
+                successAlert.style.display = 'none';
+                console.log('Success alert closed');
+            };
             successAlert.insertBefore(closeButton, successAlert.firstChild);
         }
 
         function showError(message) {
+            console.error('Showing error message:', message);
             errorAlert.textContent = message;
             errorAlert.style.display = 'block';
-            setTimeout(() => errorAlert.style.display = 'none', 5000);
+            setTimeout(() => {
+                errorAlert.style.display = 'none';
+                console.log('Error alert hidden');
+            }, 5000);
         }
     </script>
 </body>

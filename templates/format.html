@@ -54,7 +54,7 @@
             <form id="convertForm" method="POST" action="{{ url_for('format_csv') }}" enctype="multipart/form-data" class="space-y-4">
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-[#e5e5e7]">Model:</label>
-                    <select id="modelSelect" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b] mb-2">
+                    <select id="modelSelect" name="model" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b] mb-2">
                         <option value="o1-mini">o1-mini</option>
                         <option value="o1-preview">o1-preview</option>
                         <option value="gpt-4o-mini">gpt-4o-mini</option>
@@ -64,7 +64,7 @@
                         <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
                         <option value="custom">specify model yourself</option>
                     </select>
-                    <input type="text" id="customModel" name="model" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]" style="display: none;" required>
+                    <input type="text" id="customModel" class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]" style="display: none;">
                 </div>
 
                 <div class="space-y-2">
@@ -76,6 +76,12 @@
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-[#e5e5e7]">Max Tokens:</label>
                     <input type="number" name="max_tokens" value="1000" required
+                           class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]">
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-[#e5e5e7]">Temperature:</label>
+                    <input type="number" name="temperature" value="1" min="0" max="2" step="0.1" required
                            class="w-full px-3 py-2 bg-[#3a3a3c] text-[#e5e5e7] border border-[#86868b] rounded-md focus:outline-none focus:ring-2 focus:ring-[#86868b]">
                 </div>
 
@@ -117,6 +123,9 @@
         const modelSelect = document.getElementById('modelSelect');
         const customModel = document.getElementById('customModel');
 
+        // Initialize customModel value on page load
+        customModel.value = modelSelect.value;
+
         modelSelect.addEventListener('change', function() {
             if (this.value === 'custom') {
                 customModel.style.display = 'block';
@@ -138,9 +147,15 @@
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
+            console.log('Drop event triggered');
             dropZone.classList.remove('active');
             const file = e.dataTransfer.files[0];
-            if (file.type === 'text/csv') {
+            console.log('Dropped file:', file);
+            if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                // 使用 DataTransfer API 正确设置文件
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
                 handleFile(file);
             } else {
                 showError('Please upload a CSV file');
@@ -156,8 +171,9 @@
 
         function handleFile(file) {
             filename.textContent = `Selected: ${file.name}`;
-            const reader = new FileReader();
+            console.log('File handled:', file.name);
             
+            const reader = new FileReader();
             reader.onload = function(e) {
                 const text = e.target.result;
                 const headers = text.split('\n')[0].split(',');
@@ -189,7 +205,7 @@
                 return;
             }
 
-            const modelValue = modelSelect.value === 'custom' ? customModel.value : modelSelect.value;
+            const modelValue = modelSelect.value === 'custom' ? customModel.value.trim() : modelSelect.value;
             
             if (!modelValue) {
                 showError('Please select or enter a model');
@@ -201,11 +217,7 @@
             submitBtn.textContent = 'Processing...';
 
             const formData = new FormData(form);
-            if (modelSelect.value === 'custom') {
-                formData.set('model', customModel.value);
-            } else {
-                formData.set('model', modelSelect.value);
-            }
+            formData.set('model', modelValue);
             
             fetch('{{ url_for("format_csv") }}', {
                 method: 'POST',
@@ -248,11 +260,17 @@
             closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
             closeButton.onclick = () => successAlert.style.display = 'none';
             successAlert.insertBefore(closeButton, successAlert.firstChild);
+            setTimeout(() => successAlert.style.display = 'none', 5000);
         }
 
         function showError(message) {
             errorAlert.textContent = message;
             errorAlert.style.display = 'block';
+            const closeButton = document.createElement('button');
+            closeButton.textContent = '×'; 
+            closeButton.className = 'float-right text-lg font-bold hover:text-[#e5e5e7] focus:outline-none';
+            closeButton.onclick = () => errorAlert.style.display = 'none';
+            errorAlert.insertBefore(closeButton, errorAlert.firstChild);
             setTimeout(() => errorAlert.style.display = 'none', 5000);
         }
     </script>
