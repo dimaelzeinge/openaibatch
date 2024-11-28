@@ -5,7 +5,6 @@ import io
 import secrets
 import math
 import zipfile
-import csv
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -14,7 +13,6 @@ app.secret_key = secrets.token_hex(16)
 def index():
     return render_template('index.html')
 
-# Format routes
 @app.route('/format', methods=['GET'])
 def format_page():
     return render_template('format.html')
@@ -38,11 +36,7 @@ def format_csv():
         temperature = float(request.form.get('temperature', 1.0))
         content_column = request.form['content_column']
         
-        temp_file = io.BytesIO()
-        csv_file.save(temp_file)
-        temp_file.seek(0)
-        
-        df = pd.read_csv(temp_file)
+        df = pd.read_csv(csv_file)
         output = io.BytesIO()
         
         def process_row(row):
@@ -78,7 +72,6 @@ def format_csv():
     except Exception as e:
         return str(e), 500
 
-# Split routes
 @app.route('/split', methods=['GET'])
 def split_page():
     return render_template('split.html')
@@ -130,7 +123,6 @@ def split_jsonl():
     except Exception as e:
         return str(e), 500
 
-# Extract routes
 @app.route('/extract', methods=['GET'])
 def extract_page():
     return render_template('extract.html')
@@ -150,30 +142,27 @@ def extract_jsonl():
         if not lines:
             return 'The file is empty', 400
 
-        output = io.StringIO()
-        writer = csv.writer(output, quoting=csv.QUOTE_NONE, escapechar='\\')
-        writer.writerow(['custom_id', 'content'])
-        
+        data = []
         processed_ids = set()
         
         for line in lines:
             try:
-                data = json.loads(line)
-                custom_id = data.get('custom_id', '')
+                json_data = json.loads(line)
+                custom_id = json_data.get('custom_id', '')
                 if custom_id and custom_id not in processed_ids:
                     processed_ids.add(custom_id)
-                    content = data.get('response', {}).get('body', {}).get('choices', [{}])[0].get('message', {}).get('content', '')
-                    writer.writerow([custom_id, content])
+                    content = json_data.get('response', {}).get('body', {}).get('choices', [{}])[0].get('message', {}).get('content', '')
+                    data.append({'custom_id': custom_id, 'content': content})
             except (json.JSONDecodeError, KeyError, IndexError) as e:
                 continue
         
-        output_bytes = io.BytesIO()
-        output_bytes.write(output.getvalue().encode('utf-8-sig'))
-        output_bytes.seek(0)
-        output.close()
+        df = pd.DataFrame(data)
+        output = io.BytesIO()
+        df.to_csv(output, index=False, encoding='utf-8-sig')
+        output.seek(0)
         
         response = send_file(
-            output_bytes,
+            output,
             mimetype='text/csv',
             as_attachment=True,
             download_name='extracted_content.csv'
