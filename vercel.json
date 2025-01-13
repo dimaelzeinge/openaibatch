@@ -1,15 +1,15 @@
 {
-  "version": 2,
+  "devCommand": "uvicorn app:app --host 0.0.0.0 --port 3000",
   "builds": [
     {
-      "src": "wsgi.py",
+      "src": "app.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "wsgi.py"
+      "dest": "app.py"
     }
   ]
 }
