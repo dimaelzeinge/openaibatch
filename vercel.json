@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "devCommand": "uvicorn app:app --host 0.0.0.0 --port 3000",
   "builds": [
     {
@@ -8,8 +9,15 @@
   ],
   "routes": [
     {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "app.py"
     }
-  ]
+  ],
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
 }

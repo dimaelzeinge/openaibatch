@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, Form, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 import pandas as pd
 import json
@@ -10,8 +11,22 @@ import math
 import zipfile
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 修改静态文件和模板配置
 templates = Jinja2Templates(directory="templates")
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except:
+    pass
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -159,3 +174,7 @@ async def extract_jsonl(jsonl_file: UploadFile):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
