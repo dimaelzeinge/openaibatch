@@ -1,42 +1,41 @@
-from flask import Flask, render_template, request, send_file, flash, redirect, url_for
+from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.requests import Request
 import pandas as pd
 import json
 import io
-import secrets
 import math
 import zipfile
 
-app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-@app.route('/', methods=['GET'])
-def index():
-    return render_template('index.html')
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.route('/format', methods=['GET'])
-def format_page():
-    return render_template('format.html')
+@app.get("/format", response_class=HTMLResponse)
+async def format_page(request: Request):
+    return templates.TemplateResponse("format.html", {"request": request})
 
-@app.route('/format', methods=['POST'])
-def format_csv():
+@app.post("/format")
+async def format_csv(
+    csv_file: UploadFile,
+    model: str = Form(...),
+    system_prompt: str = Form(...),
+    max_tokens: int = Form(...),
+    temperature: float = Form(default=1.0),
+    content_column: str = Form(...)
+):
     try:
-        if 'csv_file' not in request.files:
-            return 'Please select a file to upload', 400
-        
-        csv_file = request.files['csv_file']
-        if csv_file.filename == '':
-            return 'No file selected', 400
+        if not csv_file:
+            raise HTTPException(status_code=400, detail="Please select a file to upload")
             
-        model = request.form.get('model')
-        if not model:
-            return 'Model is required', 400
-            
-        system_prompt = request.form['system_prompt']
-        max_tokens = int(request.form['max_tokens'])
-        temperature = float(request.form.get('temperature', 1.0))
-        content_column = request.form['content_column']
-        
-        df = pd.read_csv(csv_file)
+        contents = await csv_file.read()
+        df = pd.read_csv(io.BytesIO(contents))
         output = io.BytesIO()
         
         def process_row(row):
@@ -60,38 +59,34 @@ def format_csv():
             output.write(json.dumps(item, ensure_ascii=False).encode('utf-8') + b'\n')
                 
         output.seek(0)
-        response = send_file(
+        return FileResponse(
             output,
-            mimetype='text/plain',
-            as_attachment=True,
-            download_name='output.jsonl'
+            media_type='text/plain',
+            filename='output.jsonl',
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        return response
         
     except Exception as e:
-        return str(e), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/split', methods=['GET'])
-def split_page():
-    return render_template('split.html')
+@app.get("/split", response_class=HTMLResponse)
+async def split_page(request: Request):
+    return templates.TemplateResponse("split.html", {"request": request})
 
-@app.route('/split', methods=['POST'])
-def split_jsonl():
+@app.post("/split")
+async def split_jsonl(
+    jsonl_file: UploadFile,
+    split_number: int = Form(default=2)
+):
     try:
-        if 'jsonl_file' not in request.files:
-            return 'Please select a file to upload', 400
-        
-        file = request.files['jsonl_file']
-        if file.filename == '' or not file.filename.endswith('.jsonl'):
-            return 'Please select a valid JSONL file', 400
+        if not jsonl_file or not jsonl_file.filename.endswith('.jsonl'):
+            raise HTTPException(status_code=400, detail="Please select a valid JSONL file")
             
-        split_number = int(request.form.get('split_number', 2))
-        
-        lines = file.read().decode('utf-8').splitlines()
+        contents = await jsonl_file.read()
+        lines = contents.decode('utf-8').splitlines()
         
         if not lines:
-            return 'The file is empty', 400
+            raise HTTPException(status_code=400, detail="The file is empty")
 
         total_lines = len(lines)
         lines_per_file = math.ceil(total_lines / split_number)
@@ -110,37 +105,31 @@ def split_jsonl():
                     zf.writestr(f'part_{i+1}.jsonl', content)
 
         memory_file.seek(0)
-        
-        response = send_file(
+        return FileResponse(
             memory_file,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name='split_files.zip'
+            media_type='application/zip',
+            filename='split_files.zip',
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        return response
             
     except Exception as e:
-        return str(e), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/extract', methods=['GET'])
-def extract_page():
-    return render_template('extract.html')
+@app.get("/extract", response_class=HTMLResponse)
+async def extract_page(request: Request):
+    return templates.TemplateResponse("extract.html", {"request": request})
 
-@app.route('/extract', methods=['POST'])
-def extract_jsonl():
+@app.post("/extract")
+async def extract_jsonl(jsonl_file: UploadFile):
     try:
-        if 'jsonl_file' not in request.files:
-            return 'Please select a file to upload', 400
-        
-        file = request.files['jsonl_file']
-        if file.filename == '' or not file.filename.endswith('.jsonl'):
-            return 'Please select a valid JSONL file', 400
+        if not jsonl_file or not jsonl_file.filename.endswith('.jsonl'):
+            raise HTTPException(status_code=400, detail="Please select a valid JSONL file")
             
-        lines = file.read().decode('utf-8').splitlines()
+        contents = await jsonl_file.read()
+        lines = contents.decode('utf-8').splitlines()
         
         if not lines:
-            return 'The file is empty', 400
+            raise HTTPException(status_code=400, detail="The file is empty")
 
         data = []
         processed_ids = set()
@@ -153,7 +142,7 @@ def extract_jsonl():
                     processed_ids.add(custom_id)
                     content = json_data.get('response', {}).get('body', {}).get('choices', [{}])[0].get('message', {}).get('content', '')
                     data.append({'custom_id': custom_id, 'content': content})
-            except (json.JSONDecodeError, KeyError, IndexError) as e:
+            except (json.JSONDecodeError, KeyError, IndexError):
                 continue
         
         df = pd.DataFrame(data)
@@ -161,17 +150,16 @@ def extract_jsonl():
         df.to_csv(output, index=False, encoding='utf-8-sig')
         output.seek(0)
         
-        response = send_file(
+        return FileResponse(
             output,
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name='extracted_content.csv'
+            media_type='text/csv',
+            filename='extracted_content.csv',
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
         )
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        return response
             
     except Exception as e:
-        return str(e), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=8080)
